@@ -57,7 +57,7 @@ public class DiffServiceTest {
     }
 
     @Test
-    void test_apply_cyclic() throws DiffException {
+    void test_calculate_apply_cyclic() throws DiffException {
         // Original Person
         Person person1 = new Person();
         // Add data to original (person1)
@@ -98,7 +98,7 @@ public class DiffServiceTest {
         assertNotNull(diff);
 
         // Get the difference in human readable format
-        System.out.println(String.format("DiffServiceTest.test_apply_cyclic\n%s", this.diffRender.render(diff)));
+        System.out.println(String.format("DiffServiceTest.test_calculate_apply_cyclic\n%s", this.diffRender.render(diff)));
 
         // Restore the mutated object and test if it is the same
         Person mutated = diffService.apply(person1, diff);
@@ -142,49 +142,74 @@ public class DiffServiceTest {
 
 
     @Test
-    void calculateUpdate() throws DiffException {
+    void test_calculate_update() throws DiffException {
         assertNotNull(this.diffRender);
         assertNotNull(this.diffService);
 
+        // Get the original
         Person person1 = new Person();
+        // Set its data
         person1.setFirstName("Foo");
         Set<String> nicknames = new HashSet<String>();
         nicknames.add("Foo-bar");
         person1.setNickNames(nicknames);
+
+        // ensure data is set
         assertEquals(person1.getFirstName(), "Foo");
+        assertEquals(person1.getNickNames(), nicknames);
+
+        // Get the modified
         Person person2 = new Person();
+        // Get the difference
         Diff<Person> diff = this.diffService.calculate(person1, person2);
         assertNotNull(diff);
-        System.out.println(this.diffRender.render(diff));
+
+        // Get the difference in human readable format
+        System.out.println(String.format("DiffServiceTest.test_calculate_update\n%s", this.diffRender.render(diff)));
     }
 
     @Test
-    void calculateCreate() throws DiffException {
+    void test_calculate_create() throws DiffException {
         assertNotNull(this.diffRender);
         assertNotNull(this.diffService);
 
+        // Get the original
         Person person1 = null;
+
+        // Get the modified
         Person person2 = new Person();
         person2.setFirstName("Foo");
         Set<String> nicknames = new HashSet<String>();
         nicknames.add("Foo-bar");
         person2.setNickNames(nicknames);
+
+        // Get the difference
         Diff<Person> diff = this.diffService.calculate(person1, person2);
-        System.out.println(this.diffRender.render(diff));
+
+        // Get the difference in human readable format
+        System.out.println(String.format("DiffServiceTest.test_calculate_create\n%s", this.diffRender.render(diff)));
     }
 
     @Test
-    void calculateDelete() throws DiffException {
+    void test_calculate_delete() throws DiffException {
         assertNotNull(this.diffRender);
         assertNotNull(this.diffService);
 
+        // Get the original
         Person person1 = new Person();
+        // Set the data
         person1.setFirstName("Foo");
         Set<String> nicknames = new HashSet<String>();
         nicknames.add("Foo-bar");
         person1.setNickNames(nicknames);
+
+        // Get the modified
         Person person2 = null;
+
+        // Get the difference
         Diff<Person> diff = this.diffService.calculate(person1, person2);
-        System.out.println(this.diffRender.render(diff));
+
+        // Get the difference in human readable format
+        System.out.println(String.format("DiffServiceTest.test_calculate_delete\n%s", this.diffRender.render(diff)));
     }
 }

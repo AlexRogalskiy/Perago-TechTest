@@ -15,7 +15,7 @@ public class DiffService implements DiffEngine {
         // List<String> lastChanges = new ArrayList<String>();
         Diff<T> diff = new Diff<T>();
         diff.updateModified(modified);
-        this.calculate(diff, original, modified, null);
+        this.calculate("1", 1, diff, original, modified, null);
         return diff;
     }
 
@@ -29,7 +29,7 @@ public class DiffService implements DiffEngine {
      * @param <T>
      * @throws DiffException
      */
-    private <T extends Serializable> void calculate(Diff<T> diff, Object val1, Object val2, String parent) throws DiffException {
+    private <T extends Serializable> void calculate(String id, int recurseId, Diff<T> diff, Object val1, Object val2, String parent) throws DiffException {
         /*
          * Related to https://stackoverflow.com/questions/48321997/how-to-compare-two-objects-and-find-the-fields-properties-changed
          */
@@ -44,11 +44,15 @@ public class DiffService implements DiffEngine {
         switch (diffFieldReflectionOverride) {
             case CREATE:
                 c = val2.getClass();
-                diff.addLastChange(String.format("%s: %s", diffFieldReflectionOverride.label, val2.getClass().getName()));
+                diff.addLastChange(id, diffFieldReflectionOverride, val2.getClass().getSimpleName());
                 break;
             case DELETE:
-                diff.addLastChange(String.format("%s: %s", diffFieldReflectionOverride.label, val1.getClass().getName()));
+                diff.addLastChange(id, diffFieldReflectionOverride, val1.getClass().getSimpleName());
                 return;
+            case UPDATE:
+                c = val1.getClass();
+                diff.addLastChange(id, diffFieldReflectionOverride, val1.getClass().getSimpleName());
+                break;
             case BOTH_NULL:
                 return;
             default:
@@ -64,6 +68,7 @@ public class DiffService implements DiffEngine {
         }
 
         try {
+            int fieldId = 0;
             for (int i = 0; i < fields.length; i++) {
 
                 String currentFieldName = fields[i].getName();
@@ -95,19 +100,21 @@ public class DiffService implements DiffEngine {
                     // Test if the Object is a Collection
                     if (!Utils.isClassCollections(currentClass)) {
                         // It's an object, so run recursive operation on this inner object.
-                        this.calculate(diff, innerVal1, innerVal2, String.format("%s.%s", parent, currentFieldName));
+                        recurseId += 1;
+                        fieldId += 1;
+                        this.calculate(String.format("%s.%d", id, recurseId), recurseId, diff, innerVal1, innerVal2, String.format("%s.%s", parent, currentFieldName));
                     } else {
                         // It's a Collection, so we get what type of Collection it is
                         // and calculate the difference based on that.
                         diffFieldReflection = this.getFieldReflection(innerVal1, innerVal2);
                         if (diffFieldReflection == DiffFieldReflection.DELETE || diffFieldReflection == DiffFieldReflection.CREATE || diffFieldReflection == DiffFieldReflection.UPDATE) {
                             if (Utils.isClassCollection(currentClass)) {
-                                String changes = this.calculateCollection(innerVal1, innerVal2, diffFieldReflection);
-                                diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
+                                fieldId += 1;
+                                this.calculateCollection(String.format("%s.%d", id, fieldId), diff, diffFieldReflection, currentFieldName, innerVal1, innerVal2);
                             }
                             if (Utils.isClassMap(currentClass)) {
-                                String changes = this.calculateMap(innerVal1, innerVal2, diffFieldReflection);
-                                diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
+                                fieldId += 1;
+                                this.calculateMap(String.format("%s.%d", id, fieldId), diff, diffFieldReflection, currentFieldName, innerVal1, innerVal2);
                             }
                         }
 
@@ -120,7 +127,8 @@ public class DiffService implements DiffEngine {
                     }
 
                     if (diffFieldReflection == DiffFieldReflection.CREATE || diffFieldReflection == DiffFieldReflection.UPDATE || diffFieldReflection == DiffFieldReflection.DELETE) {
-                        diff.addLastChange(String.format("%s: %s as %s", diffFieldReflection.label, currentFieldName, innerVal2));
+                        fieldId += 1;
+                        diff.addLastChange(String.format("%s.%d", id, fieldId), diffFieldReflection, currentFieldName, String.format("%s", innerVal1), String.format("%s", innerVal2));
                     }
                 }
             }
@@ -132,13 +140,13 @@ public class DiffService implements DiffEngine {
     /**
      * Calculate map helper method
      *
-     * @param val1 original
-     * @param val2 modified
+     * @param val1      original
+     * @param val2      modified
      * @param operation the operation type (change between original and modified)
      * @return the change string containing the operation and the data that has changed
      * @throws DiffException
      */
-    private String calculateMap(Object val1, Object val2, DiffFieldReflection operation) throws DiffException {
+    private <T extends Serializable> void calculateMap(String id, Diff<T> diff, DiffFieldReflection operation, String currentFieldName, Object val1, Object val2) throws DiffException {
         StringBuilder out = new StringBuilder();
 
         try {
@@ -147,20 +155,15 @@ public class DiffService implements DiffEngine {
 
             switch (operation) {
                 case DELETE:
-                    out.append(Utils.mapToString((Map) tmp));
-                    out.append(" to null");
+                    diff.addLastChange(id, operation, currentFieldName, Utils.mapToString((Map) tmp), "null");
                     break;
                 case CREATE:
-                    out.append("null to ");
-                    out.append(Utils.mapToString((Map) tmp2));
+                    diff.addLastChange(id, operation, currentFieldName, "null", Utils.mapToString((Map) tmp2));
                     break;
                 case UPDATE:
-                    out.append(Utils.mapToString((Map) tmp));
-                    out.append(" to ");
-                    out.append(Utils.mapToString((Map) tmp2));
+                    diff.addLastChange(id, operation, currentFieldName, Utils.mapToString((Map) tmp), Utils.mapToString((Map) tmp2));
                     break;
             }
-            return out.toString();
         } catch (IOException | ClassNotFoundException e) {
             throw new DiffException(e);
         }
@@ -170,35 +173,27 @@ public class DiffService implements DiffEngine {
     /**
      * Calculate collection helper method
      *
-     * @param val1 original
-     * @param val2 modified
+     * @param val1      original
+     * @param val2      modified
      * @param operation the operation type (change between original and modified)
-     * @return the change string containing the operation and the data that has changed
      * @throws DiffException
      */
-    private String calculateCollection(Object val1, Object val2, DiffFieldReflection operation) throws DiffException {
-        StringBuilder out = new StringBuilder();
-
+    private <T extends Serializable> void calculateCollection(String id, Diff<T> diff, DiffFieldReflection operation, String currentFieldName, Object val1, Object val2) throws DiffException {
         try {
             Object tmp = this.deepClone(val1);
             Object tmp2 = this.deepClone(val2);
 
             switch (operation) {
                 case DELETE:
-                    out.append(Utils.collectionToString((Collection) tmp));
-                    out.append(" to null");
+                    diff.addLastChange(id, operation, currentFieldName, Utils.collectionToString((Collection) tmp), "null");
                     break;
                 case CREATE:
-                    out.append("null to ");
-                    out.append(Utils.collectionToString((Collection) tmp2));
+                    diff.addLastChange(id, operation, currentFieldName, "null", Utils.collectionToString((Collection) tmp2));
                     break;
                 case UPDATE:
-                    out.append(Utils.collectionToString((Collection) tmp));
-                    out.append(" to ");
-                    out.append(Utils.collectionToString((Collection) tmp2));
+                    diff.addLastChange(id, operation, currentFieldName, Utils.collectionToString((Collection) tmp), Utils.collectionToString((Collection) tmp2));
                     break;
             }
-            return out.toString();
         } catch (IOException | ClassNotFoundException e) {
             throw new DiffException(e);
         }
@@ -206,6 +201,7 @@ public class DiffService implements DiffEngine {
 
     /**
      * A helper method to get the type of operation we are dealing with
+     *
      * @param currentVal original
      * @param anotherVal modified
      * @return DiffFieldReflection enum

@@ -1,45 +1,57 @@
 package xyz.foobar;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.Serializable;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The object representing a diff.
- * Implement this class as you see fit. 
- *
+ * Implement this class as you see fit.
  */
 public class Diff<T extends Serializable> {
 
-    private T diffType;
+    private byte[] instanceData;
     private List<String> lastChanges;
-    private HashMap<String, Object> changes;
+    private HashMap<String, HashMap<Type, Object>> changes;
 
-    public Diff() {
-        this.diffType = null;
+    public Diff() throws DiffException {
+        /*try {
+            // https://stackoverflow.com/a/75345
+            // using reflection to create a new instance of type T
+            this.instance = this.getClass().getConstructor().newInstance();
+        } catch (IllegalAccessException | InstantiationException e) {
+            throw new DiffException(e);
+        }*/
+        this.instanceData = null;
         this.lastChanges = new ArrayList<String>();
         this.changes = new HashMap<>();
     }
 
-    public void addChange(String parent, String fieldName, Object value) {
+    /*public void addChange(String parent, String fieldName, Object value) {
         if (!this.changes.containsKey(parent)) {
-            this.changes.put(parent, new HashMap<String, Object>());
+            this.changes.put(parent, new HashMap<Class, Object>(Map.class, new HashMap<String, Object>()));
         }
-        ((HashMap<String, Object>)this.changes.get(parent)).put(fieldName, value);
+        ((HashMap<String, Object>) this.changes.get(parent)).put(fieldName, value);
+    }*/
+
+    public void updateModified(T obj) throws DiffException {
+        try {
+            this.instanceData = Utils.serializeObject(obj);
+        } catch (IOException e) {
+            throw new DiffException(e);
+        }
     }
 
-    public T getModified() throws IOException, ClassNotFoundException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(this.changes);
-        oos.flush();
-        oos.close();
-        bos.close();
-        byte[] byteData = bos.toByteArray();
-        ByteArrayInputStream bais = new ByteArrayInputStream(byteData);
-        T cloned = (T) new ObjectInputStream(bais).readObject();
-        return cloned;
+    public <T extends Serializable> T getModified(Class<T> type) throws DiffException {
+        try {
+            return Utils.deserializeObject(this.instanceData, type);
+        } catch (IOException | ClassNotFoundException e) {
+            throw new DiffException(e);
+        }
     }
 
     public void addLastChange(String lastChange) {

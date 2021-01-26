@@ -2,8 +2,8 @@ package xyz.foobar;
 
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Collection;
+import java.util.Map;
 
 public class DiffService implements DiffEngine {
 
@@ -11,32 +11,15 @@ public class DiffService implements DiffEngine {
         if (original == null) {
             return null;
         } else {
-            // Class typeName = original.getClass();
-            try {
-                Object modified = diff.getModified();
-                return (T) modified;
-            } catch (IOException | ClassNotFoundException e) {
-                throw new DiffException(e);
-            }
-
-            // diff.setOriginal(original);
-
-            /*try {
-             *//*ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                ObjectOutputStream out = new ObjectOutputStream(bos);
-                out.writeObject(original);
-                out.flush();
-                byte[] data = bos.toByteArray();*//*
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }*/
+            T modified = (T) diff.getModified(original.getClass());
+            return modified;
         }
     }
 
     public <T extends Serializable> Diff<T> calculate(T original, T modified) throws DiffException {
         // List<String> lastChanges = new ArrayList<String>();
-        Diff<T> diff = new Diff<>();
+        Diff<T> diff = new Diff<T>();
+        diff.updateModified(modified);
         this.calculate(diff, original, modified, null);
         return diff;
     }
@@ -112,21 +95,22 @@ public class DiffService implements DiffEngine {
                     continue;
                 }
 
-                if (!isWrapperType(currentClass)) {
-                    if (!isClassCollections(currentClass)) {
+                if (!Utils.isWrapperType(currentClass)) {
+                    if (!Utils.isClassCollections(currentClass)) {
                         this.calculate(diff, innerVal1, innerVal2, String.format("%s.%s", parent, currentFieldName));
                     } else {
                         diffFieldReflection = this.getFieldReflection(innerVal1, innerVal2);
                         if (diffFieldReflection == DiffFieldReflection.DELETE || diffFieldReflection == DiffFieldReflection.CREATE || diffFieldReflection == DiffFieldReflection.UPDATE) {
-                            if (isClassCollection(currentClass)) {
+                            if (Utils.isClassCollection(currentClass)) {
                                 String changes = this.calculateCollection(innerVal1, innerVal2, diffFieldReflection);
                                 diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
-                                diff.addChange(parent, currentFieldName, innerVal2);
+                                // diff.addChange(parent, currentFieldName, innerVal2);
                             }
-                            if (isClassMap(currentClass)) {
+                            if (Utils.isClassMap(currentClass)) {
                                 String changes = this.calculateMap(innerVal1, innerVal2, diffFieldReflection);
                                 diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
-                                diff.addChange(parent, currentFieldName, innerVal2);
+                                // diff.addChange(parent, currentFieldName, innerVal2);
+                                //diff.updateModified((T) innerVal2);
                             }
                         }
 
@@ -140,7 +124,8 @@ public class DiffService implements DiffEngine {
 
                     if (diffFieldReflection == DiffFieldReflection.CREATE || diffFieldReflection == DiffFieldReflection.UPDATE || diffFieldReflection == DiffFieldReflection.DELETE) {
                         diff.addLastChange(String.format("%s: %s as %s", diffFieldReflection.label, currentFieldName, innerVal2));
-                        diff.addChange(parent, currentFieldName, innerVal2);
+                        // diff.addChange(parent, currentFieldName, innerVal2);
+                        //diff.updateModified((T) innerVal2);
                     }
                 }
             }
@@ -167,17 +152,17 @@ public class DiffService implements DiffEngine {
 
             switch (operation) {
                 case DELETE:
-                    out.append(mapToString((Map) tmp));
+                    out.append(Utils.mapToString((Map) tmp));
                     out.append(" to null");
                     break;
                 case CREATE:
-                    out.append("null to");
-                    out.append(mapToString((Map) tmp2));
+                    out.append("null to ");
+                    out.append(Utils.mapToString((Map) tmp2));
                     break;
                 case UPDATE:
-                    out.append(mapToString((Map) tmp));
+                    out.append(Utils.mapToString((Map) tmp));
                     out.append(" to ");
-                    out.append(mapToString((Map) tmp2));
+                    out.append(Utils.mapToString((Map) tmp2));
                     break;
             }
             return out.toString();
@@ -205,17 +190,17 @@ public class DiffService implements DiffEngine {
 
             switch (operation) {
                 case DELETE:
-                    out.append(collectionToString((Collection) tmp));
+                    out.append(Utils.collectionToString((Collection) tmp));
                     out.append(" to null");
                     break;
                 case CREATE:
-                    out.append("null to");
-                    out.append(collectionToString((Collection) tmp2));
+                    out.append("null to ");
+                    out.append(Utils.collectionToString((Collection) tmp2));
                     break;
                 case UPDATE:
-                    out.append(collectionToString((Collection) tmp));
+                    out.append(Utils.collectionToString((Collection) tmp));
                     out.append(" to ");
-                    out.append(collectionToString((Collection) tmp2));
+                    out.append(Utils.collectionToString((Collection) tmp2));
                     break;
             }
             return out.toString();
@@ -264,41 +249,6 @@ public class DiffService implements DiffEngine {
         ByteArrayInputStream bais = new ByteArrayInputStream(byteData);
         Object cloned = new ObjectInputStream(bais).readObject();
         return cloned;
-    }
-
-    // https://stackoverflow.com/a/711226
-    // Check if the current type of object is primitive or not.
-    private static final Set<Class> WRAPPER_TYPES = new HashSet(Arrays.asList(
-            String.class, Boolean.class, Character.class, Byte.class, Short.class, Integer.class, Long.class, Float.class, Double.class, Void.class));
-
-    private static boolean isWrapperType(Class clazz) {
-        return WRAPPER_TYPES.contains(clazz);
-    }
-
-    // https://stackoverflow.com/a/2651654
-    // Check if a class is a Collection or Map
-    private static boolean isClassCollections(Class c) {
-        return Collection.class.isAssignableFrom(c) || Map.class.isAssignableFrom(c);
-    }
-
-    private static boolean isClassMap(Class c) {
-        return Map.class.isAssignableFrom(c);
-    }
-
-    private static boolean isClassCollection(Class c) {
-        return Collection.class.isAssignableFrom(c);
-    }
-
-    private static String collectionToString(Collection<?> val) {
-        return val.stream()
-                .map(String::valueOf)
-                .collect(Collectors.joining(", ", "{", "}"));
-    }
-
-    private static String mapToString(Map<?, ?> val) {
-        return val.keySet().stream()
-                .map(key -> key + "=" + val.get(key))
-                .collect(Collectors.joining(", ", "{", "}"));
     }
 
 

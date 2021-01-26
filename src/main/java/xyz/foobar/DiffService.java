@@ -8,12 +8,7 @@ import java.util.Map;
 public class DiffService implements DiffEngine {
 
     public <T extends Serializable> T apply(T original, Diff<?> diff) throws DiffException {
-        if (original == null) {
-            return null;
-        } else {
-            T modified = (T) diff.getModified(original.getClass());
-            return modified;
-        }
+        return (T) diff.getModified(original.getClass());
     }
 
     public <T extends Serializable> Diff<T> calculate(T original, T modified) throws DiffException {
@@ -95,22 +90,24 @@ public class DiffService implements DiffEngine {
                     continue;
                 }
 
+                // Test if the field is a Primitive or an Object
                 if (!Utils.isWrapperType(currentClass)) {
+                    // Test if the Object is a Collection
                     if (!Utils.isClassCollections(currentClass)) {
+                        // It's an object, so run recursive operation on this inner object.
                         this.calculate(diff, innerVal1, innerVal2, String.format("%s.%s", parent, currentFieldName));
                     } else {
+                        // It's a Collection, so we get what type of Collection it is
+                        // and calculate the difference based on that.
                         diffFieldReflection = this.getFieldReflection(innerVal1, innerVal2);
                         if (diffFieldReflection == DiffFieldReflection.DELETE || diffFieldReflection == DiffFieldReflection.CREATE || diffFieldReflection == DiffFieldReflection.UPDATE) {
                             if (Utils.isClassCollection(currentClass)) {
                                 String changes = this.calculateCollection(innerVal1, innerVal2, diffFieldReflection);
                                 diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
-                                // diff.addChange(parent, currentFieldName, innerVal2);
                             }
                             if (Utils.isClassMap(currentClass)) {
                                 String changes = this.calculateMap(innerVal1, innerVal2, diffFieldReflection);
                                 diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
-                                // diff.addChange(parent, currentFieldName, innerVal2);
-                                //diff.updateModified((T) innerVal2);
                             }
                         }
 
@@ -124,8 +121,6 @@ public class DiffService implements DiffEngine {
 
                     if (diffFieldReflection == DiffFieldReflection.CREATE || diffFieldReflection == DiffFieldReflection.UPDATE || diffFieldReflection == DiffFieldReflection.DELETE) {
                         diff.addLastChange(String.format("%s: %s as %s", diffFieldReflection.label, currentFieldName, innerVal2));
-                        // diff.addChange(parent, currentFieldName, innerVal2);
-                        //diff.updateModified((T) innerVal2);
                     }
                 }
             }
@@ -137,10 +132,10 @@ public class DiffService implements DiffEngine {
     /**
      * Calculate map helper method
      *
-     * @param val1
-     * @param val2
-     * @param operation
-     * @return
+     * @param val1 original
+     * @param val2 modified
+     * @param operation the operation type (change between original and modified)
+     * @return the change string containing the operation and the data that has changed
      * @throws DiffException
      */
     private String calculateMap(Object val1, Object val2, DiffFieldReflection operation) throws DiffException {
@@ -175,10 +170,10 @@ public class DiffService implements DiffEngine {
     /**
      * Calculate collection helper method
      *
-     * @param val1
-     * @param val2
-     * @param operation
-     * @return
+     * @param val1 original
+     * @param val2 modified
+     * @param operation the operation type (change between original and modified)
+     * @return the change string containing the operation and the data that has changed
      * @throws DiffException
      */
     private String calculateCollection(Object val1, Object val2, DiffFieldReflection operation) throws DiffException {
@@ -209,6 +204,12 @@ public class DiffService implements DiffEngine {
         }
     }
 
+    /**
+     * A helper method to get the type of operation we are dealing with
+     * @param currentVal original
+     * @param anotherVal modified
+     * @return DiffFieldReflection enum
+     */
     private DiffFieldReflection getFieldReflection(Object currentVal, Object anotherVal) {
         if (currentVal == null && anotherVal != null) {
             // when currentVal is null and anotherVal is not, we create
@@ -233,8 +234,8 @@ public class DiffService implements DiffEngine {
      * Deep clone an object using Serialization
      * https://stackoverflow.com/a/7596565
      *
-     * @param obj
-     * @return
+     * @param obj the object to clone
+     * @return a new cloned object
      * @throws IOException
      * @throws ClassNotFoundException
      */

@@ -2,11 +2,8 @@ package xyz.foobar;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * The object representing a diff.
@@ -16,28 +13,19 @@ public class Diff<T extends Serializable> {
 
     private byte[] instanceData;
     private List<String> lastChanges;
-    private HashMap<String, HashMap<Type, Object>> changes;
 
-    public Diff() throws DiffException {
-        /*try {
-            // https://stackoverflow.com/a/75345
-            // using reflection to create a new instance of type T
-            this.instance = this.getClass().getConstructor().newInstance();
-        } catch (IllegalAccessException | InstantiationException e) {
-            throw new DiffException(e);
-        }*/
+    public Diff() {
         this.instanceData = null;
         this.lastChanges = new ArrayList<String>();
-        this.changes = new HashMap<>();
     }
 
-    /*public void addChange(String parent, String fieldName, Object value) {
-        if (!this.changes.containsKey(parent)) {
-            this.changes.put(parent, new HashMap<Class, Object>(Map.class, new HashMap<String, Object>()));
-        }
-        ((HashMap<String, Object>) this.changes.get(parent)).put(fieldName, value);
-    }*/
-
+    /**
+     * Update the modified object
+     * This is ued to keep track of the modified object without storing
+     * a reference or clone of modified.
+     * @param obj
+     * @throws DiffException
+     */
     public void updateModified(T obj) throws DiffException {
         try {
             this.instanceData = Utils.serializeObject(obj);
@@ -46,6 +34,13 @@ public class Diff<T extends Serializable> {
         }
     }
 
+    /**
+     * Get the modified object
+     * @param type the type to cast the object back to
+     * @param <T>
+     * @return the modified object
+     * @throws DiffException
+     */
     public <T extends Serializable> T getModified(Class<T> type) throws DiffException {
         try {
             return Utils.deserializeObject(this.instanceData, type);
@@ -54,11 +49,28 @@ public class Diff<T extends Serializable> {
         }
     }
 
+    /**
+     * Add an entry into the operation and the difference between the
+     * original and modified object
+     * @param lastChange
+     */
     public void addLastChange(String lastChange) {
         this.lastChanges.add(lastChange);
     }
 
+    /**
+     * Get all the changes
+     * @return All the changes in a List format
+     */
     public List<String> getLastChanges() {
         return lastChanges;
+    }
+
+    /**
+     * Reset this diff object
+     */
+    public void reset() {
+        this.lastChanges = new ArrayList<String>();
+        this.instanceData = null;
     }
 }

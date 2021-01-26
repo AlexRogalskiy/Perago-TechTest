@@ -49,6 +49,16 @@ public class Utils {
         return baos.toByteArray();
     }
 
+    /**
+     * Deserialize back into the object
+     * https://stackoverflow.com/a/14034555
+     * @param data
+     * @param type
+     * @param <T>
+     * @return
+     * @throws IOException
+     * @throws ClassNotFoundException
+     */
     public static <T extends Serializable> T deserializeObject(byte[] data, Class<T> type) throws IOException, ClassNotFoundException {
         ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data));
         T obj = type.cast(ois.readObject());

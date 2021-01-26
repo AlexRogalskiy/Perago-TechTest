@@ -11,7 +11,14 @@ public class DiffService implements DiffEngine {
         if (original == null) {
             return null;
         } else {
-            HashMap<?, ?> map = ((HashMap<?, ?>[]) original)[0];
+            // Class typeName = original.getClass();
+            try {
+                Object modified = diff.getModified();
+                return (T) modified;
+            } catch (IOException | ClassNotFoundException e) {
+                throw new DiffException(e);
+            }
+
             // diff.setOriginal(original);
 
             /*try {
@@ -24,13 +31,12 @@ public class DiffService implements DiffEngine {
             } catch (IOException e) {
                 e.printStackTrace();
             }*/
-            return (T) diff.getCurrent();
         }
     }
 
     public <T extends Serializable> Diff<T> calculate(T original, T modified) throws DiffException {
         // List<String> lastChanges = new ArrayList<String>();
-        Diff<T> diff = new Diff<T>();
+        Diff<T> diff = new Diff<>();
         this.calculate(diff, original, modified, null);
         return diff;
     }
@@ -115,10 +121,12 @@ public class DiffService implements DiffEngine {
                             if (isClassCollection(currentClass)) {
                                 String changes = this.calculateCollection(innerVal1, innerVal2, diffFieldReflection);
                                 diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
+                                diff.addChange(parent, currentFieldName, innerVal2);
                             }
                             if (isClassMap(currentClass)) {
                                 String changes = this.calculateMap(innerVal1, innerVal2, diffFieldReflection);
                                 diff.addLastChange(String.format("%s: %s from %s", diffFieldReflection.label, currentFieldName, changes));
+                                diff.addChange(parent, currentFieldName, innerVal2);
                             }
                         }
 
@@ -132,6 +140,7 @@ public class DiffService implements DiffEngine {
 
                     if (diffFieldReflection == DiffFieldReflection.CREATE || diffFieldReflection == DiffFieldReflection.UPDATE || diffFieldReflection == DiffFieldReflection.DELETE) {
                         diff.addLastChange(String.format("%s: %s as %s", diffFieldReflection.label, currentFieldName, innerVal2));
+                        diff.addChange(parent, currentFieldName, innerVal2);
                     }
                 }
             }

@@ -24,12 +24,21 @@ public class DiffServiceTest {
         diffRender = new DiffRender();
     }
 
-    /*@Test
+    @Test
     void apply() throws DiffException {
-        Diff<Person> diff = new Diff<Person>();
-        Person person = new Person();
-        diffService.apply(person, diff);
-    }*/
+        Person person1 = new Person();
+        person1.setFirstName("Foo");
+        Set<String> nicknames = new HashSet<String>();
+        nicknames.add("Foo-bar");
+        person1.setNickNames(nicknames);
+        assertEquals(person1.getFirstName(), "Foo");
+        Person person2 = new Person();
+        Diff<Person> diff = this.diffService.calculate(person1, person2);
+        assertNotNull(diff);
+        System.out.println(this.diffRender.render(diff));
+
+        assertEquals(person2, diffService.apply(person1, diff));
+    }
 
     @Test
     void calculateUpdate() throws DiffException {
